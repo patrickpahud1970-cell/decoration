@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0f1115">
+<title>Tableau maison</title>
+<style>
+  :root {
+    --bg: #0f1115; --card: #181b22; --card2: #20242d; --text: #eef0f4;
+    --muted: #9aa1ad; --accent: #f5b84b; --ok: #5ccf8f; --line: #2a2f3a;
+    --radius: 20px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  body { padding: 20px; display: grid; gap: 20px;
+    grid-template-columns: 1.1fr 1fr; grid-template-rows: auto 1fr;
+    grid-template-areas: "clock weather" "cal hue"; min-height: 100vh; }
+  .card { background: var(--card); border-radius: var(--radius); padding: 20px; overflow: hidden; }
+  h2 { margin: 0 0 14px; font-size: 15px; font-weight: 600; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .08em; display: flex; justify-content: space-between; align-items: center; }
+  #clock { grid-area: clock; display: flex; flex-direction: column; justify-content: center; }
+  #time { font-size: clamp(64px, 11vw, 132px); font-weight: 200; line-height: 1; font-variant-numeric: tabular-nums; }
+  #date { font-size: 22px; color: var(--muted); margin-top: 8px; text-transform: capitalize; }
+  #weather { grid-area: weather; }
+  .now { display: flex; align-items: center; gap: 18px; }
+  .now .ico { font-size: 64px; }
+  .now .temp { font-size: 56px; font-weight: 300; }
+  .now .desc { color: var(--muted); font-size: 17px; }
+  .days { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 16px; }
+  .day { background: var(--card2); border-radius: 14px; padding: 10px 4px; text-align: center; font-size: 14px; }
+  .day .i { font-size: 26px; margin: 4px 0; }
+  .day .mx { font-weight: 600; } .day .mn { color: var(--muted); }
+  #cal { grid-area: cal; display: flex; flex-direction: column; }
+  #cal iframe { flex: 1; width: 100%; border: 0; border-radius: 12px; background: #fff; min-height: 300px; }
+  #hue { grid-area: hue; display: flex; flex-direction: column; }
+  .rooms { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; overflow-y: auto; }
+  .room { background: var(--card2); border-radius: 16px; padding: 14px; border: 2px solid transparent;
+    transition: border-color .2s, background .2s; user-select: none; }
+  .room.on { border-color: var(--accent); background: #2b2618; }
+  .room .top { display: flex; justify-content: space-between; align-items: center; cursor: pointer; min-height: 44px; }
+  .room .name { font-weight: 600; font-size: 16px; }
+  .bulb { font-size: 24px; filter: grayscale(1) opacity(.5); }
+  .room.on .bulb { filter: none; }
+  input[type=range] { width: 100%; margin-top: 10px; accent-color: var(--accent); height: 28px; }
+  .empty { color: var(--muted); font-size: 15px; line-height: 1.5; }
+  button { background: var(--card2); color: var(--text); border: 1px solid var(--line); border-radius: 12px;
+    padding: 10px 16px; font-size: 15px; cursor: pointer; }
+  button.primary { background: var(--accent); color: #1b1404; border: 0; font-weight: 600; }
+  .gear { background: none; border: 0; font-size: 22px; padding: 4px 8px; color: var(--muted); }
+  dialog { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: var(--radius);
+    width: min(560px, 92vw); padding: 24px; }
+  dialog::backdrop { background: rgba(0,0,0,.6); }
+  label { display: block; font-size: 14px; color: var(--muted); margin: 14px 0 6px; }
+  input[type=text] { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--bg); color: var(--text); font-size: 16px; }
+  .hint { font-size: 13px; color: var(--muted); margin-top: 6px; line-height: 1.45; }
+  .row { display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end; flex-wrap: wrap; }
+  .status { font-size: 13px; color: var(--muted); margin-top: 8px; min-height: 1em; }
+  @media (max-width: 820px), (orientation: portrait) {
+    body { grid-template-columns: 1fr; grid-template-areas: "clock" "weather" "cal" "hue"; padding: 16px; }
+    #cal iframe { min-height: 420px; }
+  }
+</style>
+</head>
+<body>
+
+<section id="clock" class="card">
+  <div id="time">--:--</div>
+  <div id="date"></div>
+</section>
+
+<section id="weather" class="card">
+  <h2><span id="wPlace">Météo</span><button class="gear" onclick="openSettings()" aria-label="Réglages">⚙️</button></h2>
+  <div id="wBody" class="empty">Chargement…</div>
+</section>
+
+<section id="cal" class="card">
+  <h2>Agenda</h2>
+  <div id="calBody" class="empty">Ajoute l'identifiant de ton agenda Google dans les réglages ⚙️.</div>
+</section>
+
+<section id="hue" class="card">
+  <h2><span>Lumières Hue</span><span id="hueState" style="font-size:12px;text-transform:none;letter-spacing:0"></span></h2>
+  <div id="hueBody" class="empty"></div>
+</section>
+
+<dialog id="settings">
+  <h3 style="margin-top:0">Réglages</h3>
+
+  <label for="sCity">Ville pour la météo</label>
+  <input type="text" id="sCity" placeholder="ex. Lausanne (vide = position de la tablette)">
+
+  <label for="sCal">Identifiant de l'agenda Google</label>
+  <input type="text" id="sCal" placeholder="ex. prenom.nom@gmail.com">
+  <div class="hint">Plusieurs agendas : sépare-les par des virgules. La tablette doit être connectée au même compte Google dans le navigateur.</div>
+
+  <label for="sHue">Adresse IP du pont Hue</label>
+  <input type="text" id="sHue" placeholder="ex. 192.168.1.40">
+  <div class="hint">
+    1. Ouvre d'abord <b>https://&lt;IP&gt;</b> dans le navigateur de la tablette et accepte le certificat.<br>
+    2. Appuie sur le gros bouton du pont, puis sur « Associer » ci-dessous (dans les 30 s).
+  </div>
+  <div class="status" id="pairStatus"></div>
+
+  <div class="row">
+    <button onclick="findBridge()">Trouver le pont</button>
+    <button onclick="pairHue()">Associer Hue</button>
+    <button onclick="document.getElementById('settings').close()">Fermer</button>
+    <button class="primary" onclick="saveSettings()">Enregistrer</button>
+  </div>
+</dialog>
+
+<script>
+/* ---------- stockage ---------- */
+const store = {
+  get(k, d = '') { try { return localStorage.getItem('dash.' + k) ?? d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('dash.' + k, v); } catch {} }
+};
+const $ = id => document.getElementById(id);
+
+/* ---------- horloge ---------- */
+function tick() {
+  const n = new Date();
+  $('time').textContent = n.toLocaleTimeString('fr-CH', { hour: '2-digit', minute: '2-digit' });
+  $('date').textContent = n.toLocaleDateString('fr-CH', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+tick(); setInterval(tick, 10_000);
+
+/* ---------- météo (Open-Meteo, sans clé) ---------- */
+const WMO = {
+  0:['☀️','Ciel dégagé'],1:['🌤️','Plutôt dégagé'],2:['⛅','Partiellement nuageux'],3:['☁️','Couvert'],
+  45:['🌫️','Brouillard'],48:['🌫️','Brouillard givrant'],51:['🌦️','Bruine légère'],53:['🌦️','Bruine'],55:['🌧️','Bruine forte'],
+  61:['🌧️','Pluie faible'],63:['🌧️','Pluie'],65:['🌧️','Forte pluie'],66:['🌧️','Pluie verglaçante'],67:['🌧️','Pluie verglaçante'],
+  71:['🌨️','Neige faible'],73:['🌨️','Neige'],75:['❄️','Forte neige'],77:['🌨️','Grésil'],
+  80:['🌦️','Averses'],81:['🌧️','Averses'],82:['⛈️','Fortes averses'],85:['🌨️','Averses de neige'],86:['❄️','Averses de neige'],
+  95:['⛈️','Orage'],96:['⛈️','Orage et grêle'],99:['⛈️','Orage et grêle']
+};
+const wmo = c => WMO[c] || ['🌡️', ''];
+
+async function locate() {
+  const city = store.get('city').trim();
+  if (city) {
+    const r = await fetch('https://geocoding-api.open-meteo.com/v1/search?count=1&language=fr&name=' + encodeURIComponent(city));
+    const j = await r.json();
+    if (!j.results?.length) throw new Error('Ville introuvable : ' + city);
+    const g = j.results[0];
+    return { lat: g.latitude, lon: g.longitude, name: g.name };
+  }
+  return new Promise((res, rej) => {
+    if (!navigator.geolocation) return rej(new Error('Indique une ville dans les réglages ⚙️'));
+    navigator.geolocation.getCurrentPosition(
+      p => res({ lat: p.coords.latitude, lon: p.coords.longitude, name: 'Ici' }),
+      () => rej(new Error('Indique une ville dans les réglages ⚙️')), { timeout: 10000 });
+  });
+}
+
+async function loadWeather() {
+  try {
+    const loc = await locate();
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}` +
+      `&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m` +
+      `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=5`;
+    const w = await (await fetch(url)).json();
+    const c = w.current, [ico, txt] = wmo(c.weather_code);
+    $('wPlace').textContent = 'Météo · ' + loc.name;
+    const days = w.daily.time.map((t, i) => {
+      const d = new Date(t + 'T12:00');
+      const lbl = i === 0 ? 'Auj.' : d.toLocaleDateString('fr-CH', { weekday: 'short' });
+      return `<div class="day"><div>${lbl}</div><div class="i">${wmo(w.daily.weather_code[i])[0]}</div>
+        <span class="mx">${Math.round(w.daily.temperature_2m_max[i])}°</span>
+        <span class="mn">${Math.round(w.daily.temperature_2m_min[i])}°</span>
+        <div class="mn" style="font-size:12px">💧${w.daily.precipitation_probability_max[i] ?? 0}%</div></div>`;
+    }).join('');
+    $('wBody').className = '';
+    $('wBody').innerHTML = `<div class="now"><div class="ico">${ico}</div>
+      <div><div class="temp">${Math.round(c.temperature_2m)}°</div>
+      <div class="desc">${txt} · ressenti ${Math.round(c.apparent_temperature)}° · 💨 ${Math.round(c.wind_speed_10m)} km/h · 💧 ${c.relative_humidity_2m}%</div></div></div>
+      <div class="days">${days}</div>`;
+  } catch (e) {
+    $('wBody').className = 'empty';
+    $('wBody').textContent = (e.message && !/fetch/i.test(e.message)) ? e.message : 'Météo momentanément indisponible (connexion).';
+  }
+}
+loadWeather(); setInterval(loadWeather, 15 * 60_000);
+
+/* ---------- agenda (Google Calendar intégré) ---------- */
+function loadCalendar() {
+  const ids = store.get('cal').split(',').map(s => s.trim()).filter(Boolean);
+  if (!ids.length) return;
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const src = ids.map(id => 'src=' + encodeURIComponent(id)).join('&');
+  const url = `https://calendar.google.com/calendar/embed?${src}&mode=AGENDA&ctz=${encodeURIComponent(tz)}` +
+    `&hl=fr&showTitle=0&showPrint=0&showTabs=1&showCalendars=0&showTz=0&bgcolor=%23ffffff`;
+  $('calBody').outerHTML = `<iframe id="calBody" src="${url}" title="Agenda"></iframe>`;
+}
+loadCalendar();
+setInterval(() => { const f = $('calBody'); if (f.tagName === 'IFRAME') f.src = f.src; }, 30 * 60_000);
+
+/* ---------- Philips Hue (API locale du pont) ---------- */
+const hueBase = () => `https://${store.get('hueIp')}/api`;
+async function hue(path, method = 'GET', body) {
+  const r = await fetch(hueBase() + path, { method, body: body ? JSON.stringify(body) : undefined });
+  return r.json();
+}
+let dragging = false;
+
+async function loadHue() {
+  const ip = store.get('hueIp'), user = store.get('hueUser');
+  if (!ip || !user) {
+    $('hueBody').className = 'empty';
+    $('hueBody').innerHTML = 'Pont Hue non associé. Ouvre les réglages ⚙️ pour le connecter.';
+    return;
+  }
+  if (dragging) return;
+  try {
+    const groups = await hue(`/${user}/groups`);
+    if (Array.isArray(groups) && groups[0]?.error) throw new Error(groups[0].error.description);
+    const rooms = Object.entries(groups).filter(([, g]) => g.type === 'Room' || g.type === 'Zone');
+    $('hueState').textContent = '● connecté';
+    $('hueState').style.color = 'var(--ok)';
+    $('hueBody').className = 'rooms';
+    $('hueBody').innerHTML = rooms.map(([id, g]) => {
+      const on = g.state.any_on;
+      return `<div class="room ${on ? 'on' : ''}" data-id="${id}">
+        <div class="top" onclick="toggleRoom('${id}', ${!on})"><span class="name">${escapeHtml(g.name)}</span><span class="bulb">💡</span></div>
+        <input type="range" min="1" max="254" value="${g.action.bri ?? 254}" aria-label="Luminosité ${escapeHtml(g.name)}"
+          onpointerdown="dragging=true" onchange="setBri('${id}', this.value)">
+      </div>`;
+    }).join('') || '<div class="empty">Aucune pièce trouvée sur le pont.</div>';
+  } catch (e) {
+    $('hueState').textContent = '● hors ligne';
+    $('hueState').style.color = '#e0705c';
+    $('hueBody').className = 'empty';
+    $('hueBody').innerHTML = `Impossible de joindre le pont (${escapeHtml(ip)}).<br>
+      Vérifie que la tablette est sur le Wi-Fi de la maison et ouvre une fois
+      <a style="color:var(--accent)" href="https://${escapeHtml(ip)}" target="_blank">https://${escapeHtml(ip)}</a> pour accepter son certificat.`;
+  }
+}
+async function toggleRoom(id, on) {
+  await hue(`/${store.get('hueUser')}/groups/${id}/action`, 'PUT', { on });
+  loadHue();
+}
+async function setBri(id, bri) {
+  dragging = false;
+  await hue(`/${store.get('hueUser')}/groups/${id}/action`, 'PUT', { on: true, bri: +bri });
+  loadHue();
+}
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+loadHue(); setInterval(loadHue, 5000);
+
+/* ---------- réglages ---------- */
+function openSettings() {
+  $('sCity').value = store.get('city'); $('sCal').value = store.get('cal'); $('sHue').value = store.get('hueIp');
+  $('pairStatus').textContent = store.get('hueUser') ? 'Hue : déjà associé ✓' : '';
+  $('settings').showModal();
+}
+function saveSettings() {
+  const ipChanged = $('sHue').value.trim() !== store.get('hueIp');
+  store.set('city', $('sCity').value.trim());
+  store.set('cal', $('sCal').value.trim());
+  store.set('hueIp', $('sHue').value.trim());
+  if (ipChanged) store.set('hueUser', '');
+  location.reload();
+}
+async function findBridge() {
+  $('pairStatus').textContent = 'Recherche…';
+  try {
+    const list = await (await fetch('https://discovery.meethue.com/')).json();
+    if (!list.length) throw 0;
+    $('sHue').value = list[0].internalipaddress;
+    $('pairStatus').textContent = 'Pont trouvé : ' + list[0].internalipaddress;
+  } catch { $('pairStatus').textContent = 'Pont introuvable automatiquement : saisis son IP (app Hue › Réglages › Ponts).'; }
+}
+async function pairHue() {
+  const ip = $('sHue').value.trim();
+  if (!ip) { $('pairStatus').textContent = 'Saisis d\'abord l\'IP du pont.'; return; }
+  store.set('hueIp', ip);
+  $('pairStatus').textContent = 'Association… (bouton du pont pressé ?)';
+  try {
+    const r = await (await fetch(`https://${ip}/api`, { method: 'POST', body: JSON.stringify({ devicetype: 'tableau_maison#tablette' }) })).json();
+    if (r[0]?.success) { store.set('hueUser', r[0].success.username); $('pairStatus').textContent = 'Associé ✓'; loadHue(); }
+    else $('pairStatus').textContent = r[0]?.error?.type === 101
+      ? 'Appuie sur le bouton rond du pont, puis réessaie dans les 30 s.' : (r[0]?.error?.description || 'Échec');
+  } catch {
+    $('pairStatus').innerHTML = `Pont injoignable. Ouvre <a style="color:var(--accent)" href="https://${escapeHtml(ip)}" target="_blank">https://${escapeHtml(ip)}</a>, accepte le certificat, puis réessaie.`;
+  }
+}
+
+/* ---------- garder l'écran allumé ---------- */
+async function wake() { try { await navigator.wakeLock?.request('screen'); } catch {} }
+wake(); document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && wake());
+
+if (!store.get('city') && !store.get('cal') && !store.get('hueIp')) setTimeout(openSettings, 600);
+</script>
+</body>
+</html>
